@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -7,54 +6,31 @@
 <title>CLIPPER PRO</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{
- background:#0b1020;color:white;
- font-family:Arial;padding:20px
-}
+body{background:#0b1020;color:white;font-family:Arial;padding:20px}
 header{text-align:center;padding:20px}
 .logo{font-size:45px}
 h1{color:#55a6ff;font-size:30px;margin:10px}
 header p{color:#aab6ca}
-.card{
- background:#18243a;padding:20px;
- border-radius:18px;margin-top:20px
-}
+.card{background:#18243a;padding:20px;border-radius:18px;margin-top:20px}
 label{display:block;margin:17px 0 10px;font-weight:bold}
-input{
- width:100%;padding:15px;border-radius:10px;
- border:1px solid #52617a;background:#0b1020;
- color:white;font-size:16px
-}
-button{
- border:0;padding:15px;border-radius:12px;
- background:#2878ff;color:white;
- font-size:16px;font-weight:bold;cursor:pointer
-}
+input{width:100%;padding:15px;border-radius:10px;border:1px solid #52617a;background:#0b1020;color:white;font-size:16px}
+button{border:0;padding:15px;border-radius:12px;background:#2878ff;color:white;font-size:16px;font-weight:bold;cursor:pointer}
+button:disabled{opacity:.55;cursor:not-allowed}
 .mainbtn{width:100%;margin-top:15px}
-#player{
- width:100%;aspect-ratio:16/9;
- margin-top:20px;border:0;border-radius:12px;
- background:#000
-}
+#player,#localPreview{width:100%;aspect-ratio:16/9;margin-top:20px;border:0;border-radius:12px;background:#000}
+#localPreview{display:none}
 .time{display:flex;gap:10px}
 .time div{flex:1;min-width:0}
-.quick{
- display:flex;gap:8px;margin-top:12px
-}
+.quick{display:flex;gap:8px;margin-top:12px}
 .quick button{flex:1;padding:12px 5px;font-size:14px}
 .quick button.active{background:#16a878}
-#message{
- margin-top:18px;color:#66d9a3;
- text-align:center;line-height:1.5
-}
-footer{
- text-align:center;color:#8996aa;
- margin-top:30px;font-size:13px
-}
+#message{margin-top:18px;color:#66d9a3;text-align:center;line-height:1.5;overflow-wrap:anywhere}
+#downloadLink{display:none;text-align:center;margin-top:15px;padding:15px;background:#16a878;color:white;border-radius:12px;font-weight:bold;text-decoration:none}
+.note{color:#aab6ca;font-size:13px;line-height:1.5;margin-top:10px}
+footer{text-align:center;color:#8996aa;margin-top:30px;font-size:13px}
 </style>
 </head>
 <body>
-
 <header>
 <div class="logo">✂️</div>
 <h1>CLIPPER PRO</h1>
@@ -62,21 +38,17 @@ footer{
 </header>
 
 <div class="card">
-
-<label>🎬 Paste YouTube Video Link</label>
+<label>🎬 Paste YouTube Video Link (Preview Only)</label>
 <input id="video" placeholder="Paste YouTube URL">
+<button class="mainbtn" onclick="loadVideo()">LOAD YOUTUBE PREVIEW ▶</button>
+<iframe id="player" allowfullscreen allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"></iframe>
 
-<button class="mainbtn" onclick="loadVideo()">
-LOAD VIDEO ▶
-</button>
-
-<iframe id="player"
-allowfullscreen
-allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture">
-</iframe>
+<label>📁 Or Choose Your Own Video File (For MP4 Clip)</label>
+<input id="fileInput" type="file" accept="video/*">
+<video id="localPreview" controls playsinline></video>
+<p class="note">MP4 clipping works with a video file saved on your phone that you own or have permission to edit. YouTube links can be previewed here, but are not downloaded or extracted.</p>
 
 <label>⚡ Quick Clip Duration</label>
-
 <div class="quick">
 <button onclick="setDuration(15,this)">15 SEC</button>
 <button onclick="setDuration(30,this)" class="active">30 SEC</button>
@@ -84,22 +56,14 @@ allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture">
 </div>
 
 <div class="time">
-<div>
-<label>Start Time (Seconds)</label>
-<input id="start" type="number" min="0" value="0">
-</div>
-<div>
-<label>End Time (Seconds)</label>
-<input id="end" type="number" min="1" value="30">
-</div>
+<div><label>Start Time (Seconds)</label><input id="start" type="number" min="0" value="0"></div>
+<div><label>End Time (Seconds)</label><input id="end" type="number" min="1" value="30"></div>
 </div>
 
-<button class="mainbtn" onclick="previewClip()">
-PREVIEW MOMENT ✂️
-</button>
-
-<p id="message">Paste a YouTube link to get started!</p>
-
+<button class="mainbtn" onclick="previewClip()">PREVIEW MOMENT ✂️</button>
+<button class="mainbtn" id="createButton" onclick="createClip()">CREATE MP4 CLIP</button>
+<a id="downloadLink" href="#" download="clipper-pro.mp4">⬇ DOWNLOAD MP4 CLIP</a>
+<p id="message">Paste a YouTube link for preview or choose a video file to create an MP4 clip.</p>
 </div>
 
 <footer>
@@ -107,95 +71,142 @@ CLIPPER PRO © 2026<br>
 Your Video. Your Moment. Your Clip.
 </footer>
 
+<script src="https://unpkg.com/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
 <script>
 let videoId="";
+let localVideoFile=null;
+let ffmpeg=null;
+let clipObjectUrl="";
 
 function getVideoId(url){
  try{
-  let u=new URL(url);
-  let id="";
-
-  if(u.hostname==="youtu.be"){
-   id=u.pathname.split("/")[1];
-  }else if(
-   ["youtube.com","www.youtube.com",
-   "m.youtube.com"].includes(u.hostname)
-  ){
-   if(u.pathname==="/watch"){
-    id=u.searchParams.get("v");
-   }else if(
-    u.pathname.startsWith("/shorts/") ||
-    u.pathname.startsWith("/embed/")
-   ){
-    id=u.pathname.split("/")[2];
-   }
+  const u=new URL(url); let id="";
+  if(u.hostname==="youtu.be") id=u.pathname.split("/")[1];
+  else if(["youtube.com","www.youtube.com","m.youtube.com"].includes(u.hostname)){
+   if(u.pathname==="/watch") id=u.searchParams.get("v");
+   else if(u.pathname.startsWith("/shorts/")||u.pathname.startsWith("/embed/")) id=u.pathname.split("/")[2];
   }
-
-  return /^[a-zA-Z0-9_-]{11}$/.test(id||"")
-   ? id : "";
- }catch(e){
-  return "";
- }
+  return /^[a-zA-Z0-9_-]{11}$/.test(id||"")?id:"";
+ }catch(e){return "";}
 }
 
 function loadVideo(){
- let url=document.getElementById("video").value.trim();
- let id=getVideoId(url);
- let msg=document.getElementById("message");
-
- if(!id){
-  msg.innerText="Please enter a valid YouTube link!";
-  return;
- }
-
+ const url=document.getElementById("video").value.trim();
+ const id=getVideoId(url);
+ const msg=document.getElementById("message");
+ if(!id){msg.innerText="Please enter a valid YouTube link!";return;}
  videoId=id;
-
- document.getElementById("player").src=
- "https://www.youtube.com/embed/"+id;
-
- msg.innerText="Video loaded successfully! 🎬";
+ document.getElementById("player").style.display="block";
+ document.getElementById("player").src="https://www.youtube.com/embed/"+id;
+ msg.innerText="YouTube preview loaded. To create an MP4, choose a video file saved on your phone.";
 }
 
+document.getElementById("fileInput").addEventListener("change",function(e){
+ const file=e.target.files[0];
+ const msg=document.getElementById("message");
+ if(!file)return;
+ if(!file.type.startsWith("video/")){msg.innerText="Please choose a video file.";return;}
+ localVideoFile=file;
+ const video=document.getElementById("localPreview");
+ if(video.src)URL.revokeObjectURL(video.src);
+ video.src=URL.createObjectURL(file);
+ video.style.display="block";
+ document.getElementById("player").style.display="none";
+ document.getElementById("player").src="";
+ document.getElementById("downloadLink").style.display="none";
+ video.onloadedmetadata=()=>{
+  document.getElementById("start").value=0;
+  document.getElementById("end").value=Math.min(30,Math.floor(video.duration));
+  msg.innerText="Video ready: "+file.name+" ("+Math.round(video.duration)+" seconds).";
+ };
+});
+
 function setDuration(seconds,button){
- let start=Number(document.getElementById("start").value);
-
+ const start=Number(document.getElementById("start").value)||0;
  document.getElementById("end").value=start+seconds;
-
- document.querySelectorAll(".quick button")
- .forEach(b=>b.classList.remove("active"));
-
+ document.querySelectorAll(".quick button").forEach(b=>b.classList.remove("active"));
  button.classList.add("active");
+ document.getElementById("message").innerText=seconds+" seconds selected!";
+}
 
- document.getElementById("message").innerText=
- seconds+" seconds selected!";
+function getTimes(){
+ const start=Number(document.getElementById("start").value);
+ const end=Number(document.getElementById("end").value);
+ if(!Number.isFinite(start)||!Number.isFinite(end)||start<0||end<=start)throw new Error("Please enter a valid start and end time.");
+ if(localVideoFile){
+  const duration=document.getElementById("localPreview").duration;
+  if(end>duration)throw new Error("End time is longer than the selected video.");
+ }
+ return {start,end};
 }
 
 function previewClip(){
- let msg=document.getElementById("message");
+ const msg=document.getElementById("message");
+ try{
+  const {start,end}=getTimes();
+  const video=document.getElementById("localPreview");
+  if(!localVideoFile){
+   if(!videoId){msg.innerText="First choose a video file or load a YouTube preview.";return;}
+   msg.innerText="YouTube preview is available, but MP4 creation needs a video file saved on your phone.";
+   return;
+  }
+  video.currentTime=start;
+  video.play();
+  setTimeout(()=>{video.pause();},(end-start)*1000);
+  msg.innerText="Playing your selected moment for preview.";
+ }catch(e){msg.innerText=e.message;}
+}
 
- if(!videoId){
-  msg.innerText="First load a YouTube video!";
-  return;
+async function createClip(){
+ const msg=document.getElementById("message");
+ const button=document.getElementById("createButton");
+ const download=document.getElementById("downloadLink");
+ if(!localVideoFile){msg.innerText="Please choose a video file from your phone first. YouTube links are preview-only.";return;}
+ let times;
+ try{times=getTimes();}catch(e){msg.innerText=e.message;return;}
+ button.disabled=true;
+ download.style.display="none";
+ try{
+  msg.innerText="Loading video engine. First use may download about 25–30 MB. Please wait...";
+  if(typeof FFmpeg==="undefined")throw new Error("Video engine did not load. Check your internet connection and refresh the page.");
+  const {createFFmpeg,fetchFile}=FFmpeg;
+  if(!ffmpeg)ffmpeg=createFFmpeg({
+   log:true,
+   corePath:"https://unpkg.com/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js"
+  });
+  if(!ffmpeg.isLoaded())await ffmpeg.load();
+  msg.innerText="Preparing your video...";
+  const inputName="clipper_input";
+  const outputName="clipper_output.mp4";
+  ffmpeg.FS("writeFile",inputName,await fetchFile(localVideoFile));
+  msg.innerText="Creating your MP4 clip. Keep this page open...";
+  await ffmpeg.run(
+   "-i",inputName,
+   "-ss",String(times.start),
+   "-t",String(times.end-times.start),
+   "-c:v","libx264",
+   "-preset","ultrafast",
+   "-crf","23",
+   "-c:a","aac",
+   "-b:a","128k",
+   "-movflags","+faststart",
+   outputName
+  );
+  const data=ffmpeg.FS("readFile",outputName);
+  const blob=new Blob([data],{type:"video/mp4"});
+  if(clipObjectUrl)URL.revokeObjectURL(clipObjectUrl);
+  clipObjectUrl=URL.createObjectURL(blob);
+  download.href=clipObjectUrl;
+  download.download="clipper-pro-clip.mp4";
+  download.style.display="block";
+  msg.innerText="Your MP4 clip is ready! Tap the green Download button.";
+  try{ffmpeg.FS("unlink",inputName);ffmpeg.FS("unlink",outputName);}catch(e){}
+ }catch(error){
+  msg.innerText="Clip creation failed: "+(error.message||error)+". Try a shorter or smaller video file.";
+ }finally{
+  button.disabled=false;
  }
-
- let start=Number(document.getElementById("start").value);
- let end=Number(document.getElementById("end").value);
-
- if(start<0 || end<=start){
-  msg.innerText="Please enter correct time!";
-  return;
- }
-
- document.getElementById("player").src=
- "https://www.youtube.com/embed/"+videoId+
- "?start="+Math.floor(start)+
- "&end="+Math.floor(end)+
- "&autoplay=1";
-
- msg.innerText=
- "Your selected moment is ready for preview! ▶";
 }
 </script>
-
 </body>
 </html>
